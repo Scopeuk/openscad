@@ -67,6 +67,7 @@ public slots:
 	void on_checkBoxJoystick_toggled(bool);
 	void on_checkBoxQGamepad_toggled(bool);
 	void on_checkBoxDBus_toggled(bool);
+	void on_checkBoxDayDreamBLE_toggled(bool);
 
 signals:
         void inputMappingChanged() const;
@@ -97,4 +98,5 @@ private:
 	QString SpaceNavInputDriverDescription = _("The SpaceNav driver enables 3D-input-devices using the spacenavd daemon, Linux only.");
 	QString JoystickInputDriverDescription = _("The Joystick driver uses the Linux joystick device (fixed to /dev/input/js0), Linux only.");
 	QString QGamepadInputDriverDescription = _("The QGAMEPAD driver is for multiplattform Gamepad Support.");
+	QString DayDreamBLEDescription         = _("The DayDreamBLE driver is for bluetooth low energy support of the daydream controler.");
 };

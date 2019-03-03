@@ -620,6 +620,12 @@ linux: {
     HEADERS += src/input/QGamepadInputDriver.h
     SOURCES += src/input/QGamepadInputDriver.cc
   }
+  qtHaveModule(bluetooth) {
+    QT += bluetooth
+    DEFINES += ENABLE_DAYDREAM_BLE
+    HEADERS += src/input/DayDreamBLEInputDriver.h
+    SOURCES += src/input/DayDreamBLEInputDriver.cc
+  }
 }
 
 unix:!macx {

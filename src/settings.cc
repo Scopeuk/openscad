@@ -194,6 +194,7 @@ SettingsEntry Settings::inputEnableDriverSPNAV("input", "enableDriverSPNAV", Val
 SettingsEntry Settings::inputEnableDriverJOYSTICK("input", "enableDriverJOYSTICK", Value(true), Value(false));
 SettingsEntry Settings::inputEnableDriverQGAMEPAD("input", "enableDriverQGAMEPAD", Value(true), Value(false));
 SettingsEntry Settings::inputEnableDriverDBUS("input", "enableDriverDBUS", Value(true), Value(false));
+SettingsEntry Settings::inputEnableDriverDayDreamBLE("input", "enableDriverDayDreamBLE", Value(true), Value(false));
 
 SettingsEntry Settings::inputTranslationX("input", "translationX", axisValues(), Value("+1"));
 SettingsEntry Settings::inputTranslationY("input", "translationY", axisValues(), Value("-2"));

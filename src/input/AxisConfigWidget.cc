@@ -107,11 +107,19 @@ void AxisConfigWidget::init() {
 	this->checkBoxDBus->setToolTip(DBusInputDriverDescription + "\n\r" + NotEnabledDuringBuild);
 #endif
 
-	initCheckBox(this->checkBoxHIDAPI,   Settings::Settings::inputEnableDriverHIDAPI);
-	initCheckBox(this->checkBoxSpaceNav, Settings::Settings::inputEnableDriverSPNAV);
-	initCheckBox(this->checkBoxJoystick, Settings::Settings::inputEnableDriverJOYSTICK);
-	initCheckBox(this->checkBoxQGamepad, Settings::Settings::inputEnableDriverQGAMEPAD);
-	initCheckBox(this->checkBoxDBus,     Settings::Settings::inputEnableDriverDBUS);
+#ifdef ENABLE_DAYDREAM_BLE
+	this->checkBoxDayDreamBLE->setEnabled(true);
+	this->checkBoxDayDreamBLE->setToolTip(DayDreamBLEDescription);
+#else
+	this->checkBoxDayDreamBLE->setToolTip(DayDreamBLEDescription + "\n\r" + NotEnabledDuringBuild);
+#endif
+
+	initCheckBox(this->checkBoxHIDAPI,      Settings::Settings::inputEnableDriverHIDAPI);
+	initCheckBox(this->checkBoxSpaceNav,    Settings::Settings::inputEnableDriverSPNAV);
+	initCheckBox(this->checkBoxJoystick,    Settings::Settings::inputEnableDriverJOYSTICK);
+	initCheckBox(this->checkBoxQGamepad,    Settings::Settings::inputEnableDriverQGAMEPAD);
+	initCheckBox(this->checkBoxDBus,        Settings::Settings::inputEnableDriverDBUS);
+	initCheckBox(this->checkBoxDayDreamBLE, Settings::Settings::inputEnableDriverDayDreamBLE);
 
 	auto *wheelIgnorer = new WheelIgnorer(this);
 	auto comboBoxes = this->findChildren<QComboBox *>();
@@ -492,6 +500,17 @@ void AxisConfigWidget::on_checkBoxDBus_toggled(bool val)
 		QFont font;
 		font.setItalic(true);
 		checkBoxDBus->setFont(font);
+	}
+}
+
+void AxisConfigWidget::on_checkBoxDayDreamBLE_toggled(bool val)
+{
+	if(initialized){
+		Settings::Settings::inst()->set(Settings::Settings::inputEnableDriverDayDreamBLE, Value(val));
+		writeSettings();
+		QFont font;
+		font.setItalic(true);
+		checkBoxDayDreamBLE->setFont(font);
 	}
 }
 

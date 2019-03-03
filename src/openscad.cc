@@ -548,6 +548,9 @@ Q_IMPORT_PLUGIN(qtaccessiblewidgets)
 #ifdef ENABLE_QGAMEPAD
 #include "input/QGamepadInputDriver.h"
 #endif
+#ifdef ENABLE_DAYDREAM_BLE
+#include "input/DayDreamBLEInputDriver.h"
+#endif
 #include <QString>
 #include <QDir>
 #include <QFileInfo>
@@ -765,7 +768,12 @@ int gui(vector<string> &inputFiles, const fs::path &original_path, int argc, cha
 		}
 	}
 #endif
-
+#ifdef ENABLE_DAYDREAM_BLE
+	if(s->get(Settings::Settings::inputEnableDriverDayDreamBLE).toBool()){
+			auto dayDreamBLEDriver =new DayDreamBLEInputDriver();
+			InputDriverManager::instance()->registerDriver(dayDreamBLEDriver);
+		}
+#endif
 	InputDriverManager::instance()->init();
 
 	int rc = app.exec();

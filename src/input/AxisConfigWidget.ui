@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>633</width>
-    <height>457</height>
+    <width>763</width>
+    <height>555</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -33,8 +33,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>599</width>
-        <height>610</height>
+        <width>726</width>
+        <height>542</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout_7" columnstretch="0,0">
@@ -1065,24 +1065,14 @@
         </widget>
        </item>
        <item row="1" column="0" colspan="2">
-        <layout class="QGridLayout" name="gridLayout_2">
-         <item row="2" column="1">
-          <widget class="QCheckBox" name="checkBoxSpaceNav">
+        <layout class="QGridLayout" name="gridLayout_2" columnstretch="0,0,0,0,0" columnminimumwidth="0,0,0,0,0">
+         <item row="2" column="2">
+          <widget class="QCheckBox" name="checkBoxJoystick">
            <property name="enabled">
             <bool>false</bool>
            </property>
            <property name="text">
-            <string>SpaceNav</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QCheckBox" name="checkBoxHIDAPI">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="text">
-            <string>HIDAPI</string>
+            <string>Joystick</string>
            </property>
           </widget>
          </item>
@@ -1096,16 +1086,6 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="2">
-          <widget class="QCheckBox" name="checkBoxJoystick">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="text">
-            <string>Joystick</string>
-           </property>
-          </widget>
-         </item>
          <item row="2" column="4">
           <widget class="QCheckBox" name="checkBoxDBus">
            <property name="enabled">
@@ -1113,6 +1093,36 @@
            </property>
            <property name="text">
             <string>DBus</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QCheckBox" name="checkBoxHIDAPI">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>HIDAPI</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QCheckBox" name="checkBoxSpaceNav">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>SpaceNav</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QCheckBox" name="checkBoxDayDreamBLE">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>DayDreamBLE</string>
            </property>
           </widget>
          </item>
