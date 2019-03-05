@@ -252,7 +252,7 @@ if(characteristic.uuid() != characteristicUuid) return;
         InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(7,remoteStateData.yTouch));
 
 
-		InputDriverManager::instance()->sendEvent(new InputEventRotate(remoteStateData.xOri, -remoteStateData.zOri, remoteStateData.yOri, false, false));
+		InputDriverManager::instance()->sendEvent(new InputEventRotate(-remoteStateData.zOri, -remoteStateData.xOri, remoteStateData.yOri, false, false));
 
         //check for change of button state
 		if (remoteStateData.isClickDown != previousRemoveStateData.isClickDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(0, remoteStateData.isClickDown));
