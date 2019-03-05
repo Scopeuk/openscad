@@ -49,10 +49,6 @@ file(MAKE_DIRECTORY ${AUTOGEN_BUILD_DIR})
 
 #add_compile_options("$<$<CONFIG:DEBUG>:-DDEBUG>")
 
-# cmake default flags include -DNDEBUG for non-Debug builds.
-# NDEBUG is known to cause OpenSCAD to crash in some case, so make sure it is unset.  Issue #2180 for details.
-#add_compile_options("-UNDEBUG")
-
 set(CMAKE_CXX_STANDARD 11)
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
@@ -73,17 +69,20 @@ macro(find_graphics)
     find_package(OpenGL REQUIRED QUIET)
     list(APPEND COMMON_LIBRARIES ${OPENGL_LIBRARIES})
 
-    find_package(GLEW CONFIG REQUIRED QUIET)
     if(MSVC) 
+      find_package(GLEW CONFIG REQUIRED QUIET)
       message("using target GLEW::GLEW")
       list(APPEND COMMON_LIBRARIES GLEW::GLEW)
-    else()
-      list(APPEND COMMON_LIBRARIES ${GLEW_LIBRARY})
-    endif()
 
-    find_path(OPENCSG_INCLUDE_DIRS opencsg/opencsg.h)
-    message("OPENCSG_INCLUDE_DIRS ${OPENCSG_INCLUDE_DIRS}")
-    include_directories("${OPENCSG_INCLUDE_DIRS}/opencsg")
+      find_path(OPENCSG_INCLUDE_DIRS opencsg/opencsg.h)
+      include_directories("${OPENCSG_INCLUDE_DIRS}/opencsg")
+    else()
+      find_package(GLEW REQUIRED QUIET)
+      list(APPEND COMMON_LIBRARIES ${GLEW_LIBRARY})
+
+      find_path(OPENCSG_INCLUDE_DIRS opencsg.h)
+      include_directories("${OPENCSG_INCLUDE_DIRS}")
+    endif()
     find_library(OPENCSG_LIBRARY opencsg)
     list(APPEND COMMON_LIBRARIES ${OPENCSG_LIBRARY})
 
@@ -157,17 +156,19 @@ if (MSVC)
   set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 else()
+  set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
   set(CMAKE_PREFIX_PATH "$ENV{OPENSCAD_LIBRARIES}")
 
   find_package(Eigen3 CONFIG REQUIRED)
   message(STATUS "Eigen3: ${EIGEN3_VERSION_STRING}")
   include_directories(${EIGEN3_INCLUDE_DIRS})
-  add_definitions(-DEIGEN_DONT_ALIGN)
 
   find_package(CGAL REQUIRED QUIET)
   message(STATUS "CGAL: ${CGAL_MAJOR_VERSION}.${CGAL_MINOR_VERSION}")
   include_directories(${CGAL_INCLUDE_DIRS})
   list(APPEND COMMON_LIBRARIES ${CGAL_LIBRARY})
+  list(APPEND COMMON_LIBRARIES ${GMP_LIBRARIES})
+  list(APPEND COMMON_LIBRARIES ${MPFR_LIBRARIES})
   add_definitions(-DENABLE_CGAL)
 
   # NOTE FindCGAL.cmake resets the BOOST_* and Boost_* variables,
@@ -198,6 +199,8 @@ else()
   message(STATUS "Glib: ${GLIB2_VERSION}")
   include_directories(${GLIB2_INCLUDE_DIRS})
   list(APPEND COMMON_LIBRARIES ${GLIB2_LIBRARIES})
+
+  list(APPEND COMMON_LIBRARIES double-conversion)
  
   find_graphics()
 endif()
@@ -223,10 +226,12 @@ message(STATUS "Flex: ${FLEX_VERSION}")
 find_package(BISON REQUIRED QUIET)
 message(STATUS "Bison: ${BISON_VERSION}")
 
-#find_package(Lib3MF REQUIRED QUIET)
-#add_definitions(${LIB3MF_CFLAGS})
-#include_directories(${LIB3MF_INCLUDE_DIRS})
-#list(APPEND COMMON_LIBRARIES ${LIB3MF_LIBRARIES})
+if(NOT MSVC)
+  find_package(Lib3MF REQUIRED QUIET)
+  add_definitions(${LIB3MF_CFLAGS})
+  include_directories(${LIB3MF_INCLUDE_DIRS})
+  list(APPEND COMMON_LIBRARIES ${LIB3MF_LIBRARIES})
+endif()
 
 # Output compilation database (compile_commands.json), so we can e.g. run clang-tidy or other tools separately
 set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
@@ -290,6 +295,7 @@ if(NOT HEADLESS)
   else()
     message(STATUS "Gamepad input driver disabled as the Qt5Gamepad module could not be found.")
   endif()
+
   
   find_package(Qt5Bluetooth QUIET)
   if (Qt5Bluetooth_FOUND)
@@ -644,7 +650,6 @@ if(ENABLE_SPNAV)
 endif()
 
 add_executable(OpenSCAD ${Sources} ${RESOURCE_FILES})
-set_property(TARGET OpenSCAD PROPERTY CMAKE_CXX_STANDARD 11)
 
 if(APPLE)
   set_target_properties(OpenSCAD PROPERTIES
