@@ -79,6 +79,13 @@ const std::string & DayDreamBLEInputDriver::get_name() const
     return name;
 }
 
+std::string DayDreamBLEInputDriver::get_info() const
+{
+        return STR(get_name() << " " << (isOpen() ? "open" : "not open"));
+}
+
+
+
 void DayDreamBLEInputDriver::deviceFound(const QBluetoothDeviceInfo &info)
 {
         PRINTD("device Found!");

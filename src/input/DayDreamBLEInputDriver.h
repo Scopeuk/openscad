@@ -62,6 +62,7 @@ public:
     void run() override;
     bool open() override;
     void close() override;
+    std::string get_info() const  override;
     struct remoteState{
         bool isClickDown;
         bool isAppDown;
