@@ -28,9 +28,6 @@
 #include "input/InputDriverManager.h"
 
 
-
-
-
 void DayDreamBLEInputDriver::run()
 {
 	PRINTD("Run Called");
@@ -156,7 +153,7 @@ if(characteristic.uuid() != characteristicUuid) return;
 
         remoteStateData.seq = (newValue.at(1) & 0x7C) >> 2;
 
-        int decoderTemp;
+        int32_t decoderTemp;
         decoderTemp = (newValue.at(1) & 0x03) << 11 | (newValue.at(2) & 0xFF) << 3 | (newValue.at(3) & 0x80) >> 5;
         decoderTemp = (decoderTemp << 19) >> 19;
         if (decoderTemp != 0)
@@ -220,9 +217,30 @@ if(characteristic.uuid() != characteristicUuid) return;
         //PRINTDB("Z gyro value = %f",remoteStateData.zGyro);
         //PRINTDB("X track value = %f",remoteStateData.xTouch);
         //PRINTDB("Y track value = %f",remoteStateData.yTouch);
-        oriQuatenion = QQuaternion::fromEulerAngles(remoteStateData.xOri, remoteStateData.zOri, remoteStateData.yOri);
-		QQuaternion relativeOri = oriQuatenion;
-        QVector4D q = relativeOri.toVector4D();
+		QVector3D axis;
+		float angle;
+		//angle = sqrt(remoteStateData.xOri*remoteStateData.xOri + remoteStateData.zOri*remoteStateData.zOri + remoteStateData.yOri*remoteStateData.yOri);
+		//if (angle > 0) {
+		//	axis.setX(remoteStateData.xOri);
+		//	axis.setY(remoteStateData.zOri);
+		//	axis.setZ(remoteStateData.yOri);
+		//	axis *= angle;
+		//	oriQuatenion = QQuaternion::fromAxisAndAngle(axis, angle);
+		//} else {
+		//	oriQuatenion.setX(0);
+		//	oriQuatenion.setY(0);
+		//	oriQuatenion.setZ(0);
+		//}
+		QQuaternion xQuatenion, yQuatenion, zQuatenion;
+		//oriQuatenion = QQuaternion::fromEulerAngles(remoteStateData.xOri, remoteStateData.zOri, remoteStateData.yOri);
+		xQuatenion = QQuaternion::fromEulerAngles(-remoteStateData.xOri,                     0,                     0);
+		yQuatenion = QQuaternion::fromEulerAngles(                    0, -remoteStateData.zOri,                     0);
+		zQuatenion = QQuaternion::fromEulerAngles(                    0,                     0,  remoteStateData.yOri);
+		
+		oriQuatenion = xQuatenion * zQuatenion * yQuatenion;
+
+
+        QVector4D q = oriQuatenion.toVector4D();
         float g[3] = {0,0,0};
         float compensated[3] = {0,0,0};
         //https://forum.arduino.cc/index.php?topic=447522.0
@@ -232,33 +250,38 @@ if(characteristic.uuid() != characteristicUuid) return;
         g[2] = q.w() * q.w() - q.x() * q.x() - q.y() * q.y() + q.z() * q.z();
 
 
-        compensated[0] = remoteStateData.xAcc + g[0];
-        compensated[1] = remoteStateData.yAcc - g[2];
-        compensated[2] = remoteStateData.zAcc + g[1];
+        compensated[0] = remoteStateData.xAcc - g[0];
+        compensated[1] = remoteStateData.zAcc - g[1];
+        compensated[2] = remoteStateData.yAcc - g[2];
 
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0, g[0]));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1, g[1]));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(2, g[2]));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3,remoteStateData.xAcc));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4,remoteStateData.yAcc));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5,remoteStateData.zAcc));
-        //InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0,compensated[0]));
-        //InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1,compensated[1]));
-        //InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(2,compensated[2]));
-        //InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3,remoteStateData.xGyro));
-        //InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4,remoteStateData.yGyro));
-        //InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5,remoteStateData.zGyro));
+		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0, g[0]));
+		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1, g[1]));
+		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(2, g[2]));
+		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3,remoteStateData.xAcc));
+		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4,remoteStateData.yAcc));
+		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5,remoteStateData.zAcc));
+        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0,compensated[0]));
+        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1,compensated[1]));
+        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(2,compensated[2]));
+        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3,remoteStateData.xGyro));
+        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4,remoteStateData.yGyro));
+        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5,remoteStateData.zGyro));
         InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(6,remoteStateData.xTouch));
         InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(7,remoteStateData.yTouch));
 
 
-		InputDriverManager::instance()->sendEvent(new InputEventRotate(-remoteStateData.zOri, -remoteStateData.xOri, remoteStateData.yOri, false, false));
+		QVector3D rotation;
+		rotation = oriQuatenion.toEulerAngles();
+		//InputDriverManager::instance()->sendEvent(new InputEventRotate(-remoteStateData.zOri, -remoteStateData.xOri, remoteStateData.yOri, false, false));
+		InputDriverManager::instance()->sendEvent(new InputEventRotate(rotation.x(), rotation.y(), rotation.z(), false, false));
+		
 
         //check for change of button state
-		if (remoteStateData.isClickDown != previousRemoveStateData.isClickDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(0, remoteStateData.isClickDown));
-		if (remoteStateData.isAppDown != previousRemoveStateData.isAppDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(1, remoteStateData.isAppDown));
-        if(remoteStateData.isHomeDown != previousRemoveStateData.isHomeDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(2, remoteStateData.isHomeDown));
-        if(remoteStateData.isVolPlusDown != previousRemoveStateData.isVolPlusDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(3, remoteStateData.isVolPlusDown));
+		if (remoteStateData.isClickDown != previousRemoveStateData.isClickDown)      InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(0, remoteStateData.isClickDown));
+		if (remoteStateData.isAppDown != previousRemoveStateData.isAppDown)          InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(1, remoteStateData.isAppDown));
+		if (remoteStateData.isHomeDown != previousRemoveStateData.isHomeDown)  		 InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(2, remoteStateData.isHomeDown));
+
+		if(remoteStateData.isVolPlusDown != previousRemoveStateData.isVolPlusDown)   InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(3, remoteStateData.isVolPlusDown));
         if(remoteStateData.isVolMinusDown != previousRemoveStateData.isVolMinusDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(4, remoteStateData.isVolMinusDown));
 
         previousRemoveStateData = remoteStateData;

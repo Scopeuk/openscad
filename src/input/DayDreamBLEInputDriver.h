@@ -83,7 +83,7 @@ public:
         double xTouch;
         double yTouch;
     } remoteStateData, previousRemoveStateData;
-    QQuaternion oriQuatenion;
+    QQuaternion oriQuatenion, baseQuatenion;
     const std::string & get_name() const override;
     void updatedDataRecived(const QLowEnergyCharacteristic &characteristic, const QByteArray &newValue);
     void deviceFound(const QBluetoothDeviceInfo &info);
@@ -98,7 +98,6 @@ public:
     int getAxisCount() const override{
         return 8;
     }
-
 
 };
 
