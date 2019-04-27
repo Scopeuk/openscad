@@ -78,7 +78,24 @@ const std::string & DayDreamBLEInputDriver::get_name() const
 
 std::string DayDreamBLEInputDriver::get_info() const
 {
-        return STR(get_name() << " " << (isOpen() ? "open" : "not open"));
+	dayDreamService->readCharacteristic(dayDreamService->characteristic(batteryUuid));
+	switch (dayDreamControler->state()) {
+	case QLowEnergyController::UnconnectedState:
+		return STR(get_name() << " UnconnectedState");
+	case QLowEnergyController::ConnectingState:
+		return STR(get_name() << " ConnectingState");
+	case QLowEnergyController::ConnectedState:
+		return STR(get_name() << " ConnectedState");
+	case QLowEnergyController::DiscoveringState:
+		return STR(get_name() << " DiscoveringState");
+	case QLowEnergyController::DiscoveredState:
+		return STR(get_name() << " DiscoveredState " << batteryLevel);
+	case QLowEnergyController::ClosingState:
+		return STR(get_name() << " ClosingState");
+	case QLowEnergyController::AdvertisingState:
+		return STR(get_name() << " AdvertisingState");
+	}
+        return STR(get_name() << " Unknown State");
 }
 
 
@@ -139,120 +156,101 @@ void DayDreamBLEInputDriver::detailsDiscovered(QLowEnergyService::ServiceState n
 
 
 void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &characteristic, const QByteArray &newValue){
-if(characteristic.uuid() != characteristicUuid) return;
-        //PRINTD("Updated DataRecieved Called");
-        //PRINTDB("new Data Length %d", newValue.size());
-	//TODO: make more robust, check characteristic is the one we expect
-        remoteStateData.isClickDown = (uint8_t(newValue.at(18))&0x1)>0;
-        remoteStateData.isAppDown = (newValue.at(18) & 0x4) > 0;
-        remoteStateData.isHomeDown = (newValue.at(18) & 0x2) > 0;
-        remoteStateData.isVolPlusDown = (newValue.at(18) & 0x10) > 0;
-        remoteStateData.isVolMinusDown = (newValue.at(18) & 0x8) > 0;
+	if (characteristic.uuid() == characteristicUuid) {
+		//packing info http://stackoverflow.com/questions/40730809/use-daydream-controller-on-hololens-or-outside-daydream/40753551#40753551
+		remoteStateData.isClickDown    = (uint8_t(newValue.at(18)) & 0x1) > 0;
+		remoteStateData.isAppDown      = (newValue.at(18) & 0x4) > 0;
+		remoteStateData.isHomeDown     = (newValue.at(18) & 0x2) > 0;
+		remoteStateData.isVolPlusDown  = (newValue.at(18) & 0x10) > 0;
+		remoteStateData.isVolMinusDown = (newValue.at(18) & 0x8) > 0;
 
-        remoteStateData.time = ((newValue.at(0) & 0xFF) << 1 | (newValue.at(1) & 0x80) >> 7);
+		remoteStateData.time = ((newValue.at(0) & 0xFF) << 1 | (newValue.at(1) & 0x80) >> 7);
 
-        remoteStateData.seq = (newValue.at(1) & 0x7C) >> 2;
+		remoteStateData.seq = (newValue.at(1) & 0x7C) >> 2;
 
-        int32_t decoderTemp;
-        decoderTemp = (newValue.at(1) & 0x03) << 11 | (newValue.at(2) & 0xFF) << 3 | (newValue.at(3) & 0x80) >> 5;
-        decoderTemp = (decoderTemp << 19) >> 19;
-        if (decoderTemp != 0)
-            remoteStateData.xOri = decoderTemp * (360.0 / 4095.0);
+		int32_t decoderTemp;
+		decoderTemp = (newValue.at(1) & 0x03) << 11 | (newValue.at(2) & 0xFF) << 3 | (newValue.at(3) & 0xE0) >> 5;
+		decoderTemp = (decoderTemp << 19) >> 19;
+		remoteStateData.xOri = decoderTemp * (360.0 / 4095.0); //scaled to deg
 
-        decoderTemp = (newValue.at(3) & 0x1F) << 8 | (newValue.at(4) & 0xFF);
-        decoderTemp = (decoderTemp << 19) >> 19;
-        if (decoderTemp != 0)
-            remoteStateData.yOri = decoderTemp * (360.0 / 4095.0);
+		decoderTemp = (newValue.at(3) & 0x1F) << 8 | (newValue.at(4) & 0xFF);
+		decoderTemp = (decoderTemp << 19) >> 19;
+		remoteStateData.yOri = decoderTemp * (360.0 / 4095.0); //scaled to deg
 
-        decoderTemp = (newValue.at(5) & 0xFF) << 5 | (newValue.at(6) & 0xF8) >> 3;
-        decoderTemp = (decoderTemp << 19) >> 19;
-        if (decoderTemp != 0)
-            remoteStateData.zOri = decoderTemp * (360.0 / 4095.0);
+		decoderTemp = (newValue.at(5) & 0xFF) << 5 | (newValue.at(6) & 0xF8) >> 3;
+		decoderTemp = (decoderTemp << 19) >> 19;
+		remoteStateData.zOri = decoderTemp * (360.0 / 4095.0); //scaled to deg
 
-        decoderTemp = (newValue.at(6) & 0x07) << 10 | (newValue.at(7) & 0xFF) << 2 | (newValue.at(8) & 0xC0) >> 6;
-        decoderTemp = (decoderTemp << 19) >> 19;
-        if (decoderTemp != 0)
-            remoteStateData.xAcc = decoderTemp * (8 / 4095.0);
+		decoderTemp = (newValue.at(6) & 0x07) << 10 | (newValue.at(7) & 0xFF) << 2 | (newValue.at(8) & 0xC0) >> 6;
+		decoderTemp = (decoderTemp << 19) >> 19;
+		remoteStateData.xAcc = decoderTemp * (8 / 4095.0); //scale to g
 
-        decoderTemp = (newValue.at(8) & 0x3F) << 7 | ((newValue.at(9) >> 1) & 0x7F);
-        decoderTemp = (decoderTemp << 19) >> 19;
-        if (decoderTemp != 0)
-            remoteStateData.yAcc = decoderTemp * (8 / 4095.0);
+		decoderTemp = (newValue.at(8) & 0x3F) << 7 | (((newValue.at(9) & 0xFE) >> 1) & 0x7F);
+		decoderTemp = (decoderTemp << 19) >> 19;
+		remoteStateData.yAcc = decoderTemp * (8 / 4095.0); //scale to g
 
-        decoderTemp = (newValue.at(9) & 0x01) << 12 | (newValue.at(10) & 0xFF) << 4 | (newValue.at(11) & 0xF0) >> 4;
-        decoderTemp = (decoderTemp << 19) >> 19;
-        if (decoderTemp != 0)
-            remoteStateData.zAcc = decoderTemp * (8 / 4095.0);
+		decoderTemp = (newValue.at(9) & 0x01) << 12 | (newValue.at(10) & 0xFF) << 4 | (newValue.at(11) & 0xF0) >> 4;
+		decoderTemp = (decoderTemp << 19) >> 19;
+		remoteStateData.zAcc = decoderTemp * (8 / 4095.0); //scale to g
 
-        decoderTemp = (newValue.at(11) & 0x0F) << 9 | (newValue.at(12) & 0xFF) << 1 | (newValue.at(13) & 0x80) >> 7;
-        decoderTemp = (decoderTemp << 19) >> 19;
-        if (decoderTemp != 0)
-            remoteStateData.xGyro = decoderTemp / 4095.0;
+		decoderTemp = (newValue.at(11) & 0x0F) << 9 | (newValue.at(12) & 0xFF) << 1 | (newValue.at(13) & 0x80) >> 7;
+		decoderTemp = (decoderTemp << 19) >> 19;
+		remoteStateData.xGyro = (decoderTemp*(2048/32400)) / 4095.0;
 
-        decoderTemp = (newValue.at(13) & 0x7F) << 6 | ((newValue.at(14) & 0xFC)>>2);
-        decoderTemp = (decoderTemp << 19) >> 19;
-        if (decoderTemp != 0)
-            remoteStateData.yGyro = decoderTemp / 4095.0;
+		decoderTemp = (newValue.at(13) & 0x7F) << 6 | ((newValue.at(14) & 0xFC) >> 2);
+		decoderTemp = (decoderTemp << 19) >> 19;
+		remoteStateData.yGyro = (decoderTemp * (2048 / 32400)) / 4095.0;
 
-        decoderTemp = (newValue.at(14) & 0x7F) << 11 | (newValue.at(15) & 0xFF) << 3 | (newValue.at(16) & 0xE0) >> 5;
-        decoderTemp = (decoderTemp << 19) >> 19;
-        if (decoderTemp != 0)
-            remoteStateData.zGyro = decoderTemp / 4095.0;
+		decoderTemp = ((newValue.at(14) & 0x03) << 11 | (newValue.at(15) & 0xFF) << 3 | (newValue.at(16) & 0xE0) >> 5);
+		decoderTemp = (decoderTemp << 19) >> 19;
+		remoteStateData.zGyro = (decoderTemp * (2048 / 32400)) / 4095.0;
 
-        remoteStateData.xTouch = (2.0*((newValue.at(16) & 0x1F) << 3 | (newValue.at(17) & 0xE0) >> 5) / 255.0)-1;
-        if(remoteStateData.xTouch==-1) remoteStateData.xTouch = 0;
-        remoteStateData.yTouch = -((2.0*((newValue.at(17) & 0x1F) << 3 | (newValue.at(18) & 0xE0) >> 5) / 255.0)-1);
-        if(remoteStateData.yTouch==1) remoteStateData.yTouch = 0;
+		remoteStateData.xTouch = (2.0*((newValue.at(16) & 0x1F) << 3 | (newValue.at(17) & 0xE0) >> 5) / 255.0) - 1;
+		if (remoteStateData.xTouch == -1) remoteStateData.xTouch = 0; //defaults to extreme, remap to center
+		remoteStateData.yTouch = -((2.0*((newValue.at(17) & 0x1F) << 3 | (newValue.at(18) & 0xE0) >> 5) / 255.0) - 1);
+		if (remoteStateData.yTouch == 1) remoteStateData.yTouch = 0; //defaults to extreme, remap to center
 
-        //PRINTDB("Time %d",remoteStateData.time);
-        //PRINTDB("seq %d",remoteStateData.seq);
-        //PRINTDB("X accell value = %f",remoteStateData.xAcc);
-        //PRINTDB("Y accell value = %f",remoteStateData.yAcc);
-        //PRINTDB("Z accell value = %f",remoteStateData.zAcc);
-        //PRINTDB("X ori value = %f",remoteStateData.xOri);
-        //PRINTDB("Y ori value = %f",remoteStateData.yOri);
-        //PRINTDB("Z ori value = %f",remoteStateData.zOri);
-        //PRINTDB("X gyro value = %f",remoteStateData.xGyro);
-        //PRINTDB("Y gyro value = %f",remoteStateData.yGyro);
-        //PRINTDB("Z gyro value = %f",remoteStateData.zGyro);
-        //PRINTDB("X track value = %f",remoteStateData.xTouch);
-        //PRINTDB("Y track value = %f",remoteStateData.yTouch);
-		QVector3D axis;
-		float angle;
-		//angle = sqrt(remoteStateData.xOri*remoteStateData.xOri + remoteStateData.zOri*remoteStateData.zOri + remoteStateData.yOri*remoteStateData.yOri);
-		//if (angle > 0) {
-		//	axis.setX(remoteStateData.xOri);
-		//	axis.setY(remoteStateData.zOri);
-		//	axis.setZ(remoteStateData.yOri);
-		//	axis *= angle;
-		//	oriQuatenion = QQuaternion::fromAxisAndAngle(axis, angle);
-		//} else {
-		//	oriQuatenion.setX(0);
-		//	oriQuatenion.setY(0);
-		//	oriQuatenion.setZ(0);
-		//}
 		QQuaternion xQuatenion, yQuatenion, zQuatenion;
-		//oriQuatenion = QQuaternion::fromEulerAngles(remoteStateData.xOri, remoteStateData.zOri, remoteStateData.yOri);
-		xQuatenion = QQuaternion::fromEulerAngles(-remoteStateData.xOri,                     0,                     0);
-		yQuatenion = QQuaternion::fromEulerAngles(                    0, -remoteStateData.zOri,                     0);
-		zQuatenion = QQuaternion::fromEulerAngles(                    0,                     0,  remoteStateData.yOri);
-		
-		oriQuatenion = xQuatenion * zQuatenion * yQuatenion;
+		xQuatenion = QQuaternion::fromEulerAngles(remoteStateData.zOri, 0, 0);
+		yQuatenion = QQuaternion::fromEulerAngles(0, remoteStateData.xOri, 0);
+		zQuatenion = QQuaternion::fromEulerAngles(0, 0, remoteStateData.yOri);
+		//manually stack rotations to enforce order
+		oriQuatenion = xQuatenion.inverted() * yQuatenion.inverted() * zQuatenion;
 
+		if (baseQuatenion.isIdentity()) {
+			baseQuatenion = oriQuatenion.inverted(); //on first pass set current remote orientation as 0,0,0
+		}
 
-        QVector4D q = oriQuatenion.toVector4D();
-        float g[3] = {0,0,0};
-        float compensated[3] = {0,0,0};
-        //https://forum.arduino.cc/index.php?topic=447522.0
+		QVector4D q = oriQuatenion.toVector4D();
+		float g[3] = { 0,0,0 };
+		float compensated[3] = { 0,0,0 };
+		//https://forum.arduino.cc/index.php?topic=447522.0
 		//http://www.varesano.net/blog/fabio/simple-gravity-compensation-9-dom-imus
-        g[0] = 2 * (q.x() * q.z() - q.w() * q.y());
-        g[1] = 2 * (q.w() * q.x() + q.y() * q.z());
-        g[2] = q.w() * q.w() - q.x() * q.x() - q.y() * q.y() + q.z() * q.z();
+		g[0] = 2 * (q.x() * q.z() - q.w() * q.y());
+		g[1] = 2 * (q.w() * q.x() + q.y() * q.z());
+		g[2] = q.w() * q.w() - q.x() * q.x() - q.y() * q.y() + q.z() * q.z();
 
 
-        compensated[0] = remoteStateData.xAcc - g[0];
-        compensated[1] = remoteStateData.zAcc - g[1];
-        compensated[2] = remoteStateData.yAcc - g[2];
+		compensated[0] = remoteStateData.xAcc - g[0];
+		compensated[1] = remoteStateData.zAcc - g[1];
+		compensated[2] = remoteStateData.yAcc - g[2];
+
+		//modification to quarterion done after gravity compensation calc, acelerometer and orientation sensor are co mounted with a fixed offset
+		oriQuatenion = oriQuatenion * baseQuatenion;
+
+		//PRINTDB("Time %d",remoteStateData.time);
+		//PRINTDB("seq %d",remoteStateData.seq);
+		//PRINTDB("X accell value = %f",remoteStateData.xAcc);
+		//PRINTDB("Y accell value = %f",remoteStateData.yAcc);
+		//PRINTDB("Z accell value = %f",remoteStateData.zAcc);
+		//PRINTDB("X ori value = %f",remoteStateData.xOri);
+		//PRINTDB("Y ori value = %f",remoteStateData.yOri);
+		//PRINTDB("Z ori value = %f",remoteStateData.zOri);
+		//PRINTDB("X gyro value = %f",remoteStateData.xGyro);
+		//PRINTDB("Y gyro value = %f",remoteStateData.yGyro);
+		//PRINTDB("Z gyro value = %f",remoteStateData.zGyro);
+		//PRINTDB("X track value = %f",remoteStateData.xTouch);
+		//PRINTDB("Y track value = %f",remoteStateData.yTouch);
 
 		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0, g[0]));
 		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1, g[1]));
@@ -260,34 +258,35 @@ if(characteristic.uuid() != characteristicUuid) return;
 		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3,remoteStateData.xAcc));
 		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4,remoteStateData.yAcc));
 		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5,remoteStateData.zAcc));
-        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0,compensated[0]));
-        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1,compensated[1]));
-        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(2,compensated[2]));
-        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3,remoteStateData.xGyro));
-        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4,remoteStateData.yGyro));
-        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5,remoteStateData.zGyro));
-        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(6,remoteStateData.xTouch));
-        InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(7,remoteStateData.yTouch));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0, compensated[0]));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1, compensated[1]));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(2, compensated[2]));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3, remoteStateData.xGyro));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4, remoteStateData.yGyro));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5, remoteStateData.zGyro));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(6, remoteStateData.xTouch));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(7, remoteStateData.yTouch));
 
 
 		QVector3D rotation;
 		rotation = oriQuatenion.toEulerAngles();
 		//InputDriverManager::instance()->sendEvent(new InputEventRotate(-remoteStateData.zOri, -remoteStateData.xOri, remoteStateData.yOri, false, false));
 		InputDriverManager::instance()->sendEvent(new InputEventRotate(rotation.x(), rotation.y(), rotation.z(), false, false));
-		
 
-        //check for change of button state
+
+		//check for change of button state
 		if (remoteStateData.isClickDown != previousRemoveStateData.isClickDown)      InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(0, remoteStateData.isClickDown));
 		if (remoteStateData.isAppDown != previousRemoveStateData.isAppDown)          InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(1, remoteStateData.isAppDown));
 		if (remoteStateData.isHomeDown != previousRemoveStateData.isHomeDown)  		 InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(2, remoteStateData.isHomeDown));
 
-		if(remoteStateData.isVolPlusDown != previousRemoveStateData.isVolPlusDown)   InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(3, remoteStateData.isVolPlusDown));
-        if(remoteStateData.isVolMinusDown != previousRemoveStateData.isVolMinusDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(4, remoteStateData.isVolMinusDown));
+		if (remoteStateData.isVolPlusDown != previousRemoveStateData.isVolPlusDown)   InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(3, remoteStateData.isVolPlusDown));
+		if (remoteStateData.isVolMinusDown != previousRemoveStateData.isVolMinusDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(4, remoteStateData.isVolMinusDown));
 
-        previousRemoveStateData = remoteStateData;
-
+		previousRemoveStateData = remoteStateData;
+	}
 
 }
+
 
 void DayDreamBLEInputDriver::deviceScanError(QBluetoothDeviceDiscoveryAgent::Error error)
 {

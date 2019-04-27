@@ -56,7 +56,9 @@ class DayDreamBLEInputDriver : public InputDriver
 
 public:
    const QBluetoothUuid characteristicUuid = QBluetoothUuid(QString("00000001-1000-1000-8000-00805f9b34fb"));
+   const QBluetoothUuid batteryUuid = QBluetoothUuid(QString("00002A19-0000-1000-8000-00805F9B34FB")); //currently unusued
    const QBluetoothUuid serviceUuid = QBluetoothUuid(quint16(0xfe55));
+   const QBluetoothUuid batteryServiceUuid = QBluetoothUuid(quint16(0x180F)); //currently unusued
     DayDreamBLEInputDriver();
     ~DayDreamBLEInputDriver();
     void run() override;
@@ -83,6 +85,7 @@ public:
         double xTouch;
         double yTouch;
     } remoteStateData, previousRemoveStateData;
+	int batteryLevel;
     QQuaternion oriQuatenion, baseQuatenion;
     const std::string & get_name() const override;
     void updatedDataRecived(const QLowEnergyCharacteristic &characteristic, const QByteArray &newValue);
