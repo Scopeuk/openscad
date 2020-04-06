@@ -134,6 +134,7 @@ void DayDreamBLEInputDriver::discoveryFinished()
 {
             PRINTD("Service Discovery Finsihed");
             dayDreamService = dayDreamControler->createServiceObject(serviceUuid);
+			if (dayDreamService == NULL) return;
             dayDreamService->discoverDetails();
             connect(dayDreamService, &QLowEnergyService::stateChanged, this, &DayDreamBLEInputDriver::detailsDiscovered);
 }
@@ -159,10 +160,10 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 	if (characteristic.uuid() == characteristicUuid) {
 		//packing info http://stackoverflow.com/questions/40730809/use-daydream-controller-on-hololens-or-outside-daydream/40753551#40753551
 		remoteStateData.isClickDown    = (uint8_t(newValue.at(18)) & 0x1) > 0;
-		remoteStateData.isAppDown      = (newValue.at(18) & 0x4) > 0;
-		remoteStateData.isHomeDown     = (newValue.at(18) & 0x2) > 0;
+		remoteStateData.isAppDown      = (newValue.at(18) & 0x4 ) > 0;
+		remoteStateData.isHomeDown     = (newValue.at(18) & 0x2 ) > 0;
 		remoteStateData.isVolPlusDown  = (newValue.at(18) & 0x10) > 0;
-		remoteStateData.isVolMinusDown = (newValue.at(18) & 0x8) > 0;
+		remoteStateData.isVolMinusDown = (newValue.at(18) & 0x8 ) > 0;
 
 		remoteStateData.time = ((newValue.at(0) & 0xFF) << 1 | (newValue.at(1) & 0x80) >> 7);
 
@@ -211,15 +212,13 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 		if (remoteStateData.yTouch == 1) remoteStateData.yTouch = 0; //defaults to extreme, remap to center
 
 		QQuaternion xQuatenion, yQuatenion, zQuatenion;
-		xQuatenion = QQuaternion::fromEulerAngles(remoteStateData.zOri, 0, 0);
-		yQuatenion = QQuaternion::fromEulerAngles(0, remoteStateData.xOri, 0);
-		zQuatenion = QQuaternion::fromEulerAngles(0, 0, remoteStateData.yOri);
+		//remote cordinates are world relative not device relative, as are axis
+		xQuatenion = QQuaternion::fromEulerAngles(remoteStateData.xOri, 0, 0); //x open scad, about x (across screen)  
+		yQuatenion = QQuaternion::fromEulerAngles(0, remoteStateData.zOri, 0);  //y open scad, about y (into screen) 
+		zQuatenion = QQuaternion::fromEulerAngles(0, 0, remoteStateData.yOri); //z about z top of screen to bottom
 		//manually stack rotations to enforce order
-		oriQuatenion = xQuatenion.inverted() * yQuatenion.inverted() * zQuatenion;
-
-		if (baseQuatenion.isIdentity()) {
-			baseQuatenion = oriQuatenion.inverted(); //on first pass set current remote orientation as 0,0,0
-		}
+		//oriQuatenion = xQuatenion.inverted() * yQuatenion.inverted() * zQuatenion;
+		oriQuatenion = xQuatenion * yQuatenion.inverted() * zQuatenion;
 
 		QVector4D q = oriQuatenion.toVector4D();
 		float g[3] = { 0,0,0 };
@@ -234,10 +233,8 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 		compensated[0] = remoteStateData.xAcc - g[0];
 		compensated[1] = remoteStateData.zAcc - g[1];
 		compensated[2] = remoteStateData.yAcc - g[2];
-
-		//modification to quarterion done after gravity compensation calc, acelerometer and orientation sensor are co mounted with a fixed offset
-		oriQuatenion = oriQuatenion * baseQuatenion;
-
+		
+		PRINTDB("%+.6f,%+.6f,%+.6f", remoteStateData.xOri % remoteStateData.yOri % remoteStateData.zOri);
 		//PRINTDB("Time %d",remoteStateData.time);
 		//PRINTDB("seq %d",remoteStateData.seq);
 		//PRINTDB("X accell value = %f",remoteStateData.xAcc);
@@ -252,18 +249,15 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 		//PRINTDB("X track value = %f",remoteStateData.xTouch);
 		//PRINTDB("Y track value = %f",remoteStateData.yTouch);
 
-		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0, g[0]));
-		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1, g[1]));
-		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(2, g[2]));
-		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3,remoteStateData.xAcc));
-		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4,remoteStateData.yAcc));
-		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5,remoteStateData.zAcc));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3,remoteStateData.xAcc));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4,remoteStateData.yAcc));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5,remoteStateData.zAcc));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0, compensated[0]));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1, compensated[1]));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(2, compensated[2]));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3, remoteStateData.xGyro));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4, remoteStateData.yGyro));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5, remoteStateData.zGyro));
+		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3, remoteStateData.xGyro));
+		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4, remoteStateData.yGyro));
+		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5, remoteStateData.zGyro));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(6, remoteStateData.xTouch));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(7, remoteStateData.yTouch));
 
@@ -272,17 +266,18 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 		rotation = oriQuatenion.toEulerAngles();
 		//InputDriverManager::instance()->sendEvent(new InputEventRotate(-remoteStateData.zOri, -remoteStateData.xOri, remoteStateData.yOri, false, false));
 		InputDriverManager::instance()->sendEvent(new InputEventRotate(rotation.x(), rotation.y(), rotation.z(), false, false));
+		//InputDriverManager::instance()->sendEvent(new InputEventRotate2(rotation.x(), rotation.y(), rotation.z(), false));
 
 
 		//check for change of button state
-		if (remoteStateData.isClickDown != previousRemoveStateData.isClickDown)      InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(0, remoteStateData.isClickDown));
-		if (remoteStateData.isAppDown != previousRemoveStateData.isAppDown)          InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(1, remoteStateData.isAppDown));
-		if (remoteStateData.isHomeDown != previousRemoveStateData.isHomeDown)  		 InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(2, remoteStateData.isHomeDown));
+		if (remoteStateData.isClickDown != previousRemoteStateData.isClickDown)      InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(0, remoteStateData.isClickDown));
+		if (remoteStateData.isAppDown != previousRemoteStateData.isAppDown)          InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(1, remoteStateData.isAppDown));
+		if (remoteStateData.isHomeDown != previousRemoteStateData.isHomeDown)  		 InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(2, remoteStateData.isHomeDown));
 
-		if (remoteStateData.isVolPlusDown != previousRemoveStateData.isVolPlusDown)   InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(3, remoteStateData.isVolPlusDown));
-		if (remoteStateData.isVolMinusDown != previousRemoveStateData.isVolMinusDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(4, remoteStateData.isVolMinusDown));
+		if (remoteStateData.isVolPlusDown != previousRemoteStateData.isVolPlusDown)   InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(3, remoteStateData.isVolPlusDown));
+		if (remoteStateData.isVolMinusDown != previousRemoteStateData.isVolMinusDown) InputDriverManager::instance()->sendEvent(new InputEventButtonChanged(4, remoteStateData.isVolMinusDown));
 
-		previousRemoveStateData = remoteStateData;
+		previousRemoteStateData = remoteStateData;
 	}
 
 }

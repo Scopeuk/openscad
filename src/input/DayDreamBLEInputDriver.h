@@ -84,7 +84,7 @@ public:
         double zGyro;
         double xTouch;
         double yTouch;
-    } remoteStateData, previousRemoveStateData;
+    } remoteStateData, previousRemoteStateData;
 	int batteryLevel;
     QQuaternion oriQuatenion, baseQuatenion;
     const std::string & get_name() const override;
