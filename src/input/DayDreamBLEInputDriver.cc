@@ -107,7 +107,6 @@ void DayDreamBLEInputDriver::deviceFound(const QBluetoothDeviceInfo &info)
             PRINTD("device found and stashed");
             dayDreamControler = QLowEnergyController::createCentral(info,this);
             dayDreamControler->setRemoteAddressType(QLowEnergyController::RandomAddress);
-            //dayDreamControler->setRemoteAddressType(QLowEnergyController::PublicAddress);
             connect(dayDreamControler, &QLowEnergyController::connected, this, &DayDreamBLEInputDriver::deviceConnected);
             dayDreamControler->connectToDevice();
 			PRINTD("connection started.");
@@ -196,7 +195,7 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 
 		decoderTemp = (newValue.at(11) & 0x0F) << 9 | (newValue.at(12) & 0xFF) << 1 | (newValue.at(13) & 0x80) >> 7;
 		decoderTemp = (decoderTemp << 19) >> 19;
-		remoteStateData.xGyro = (decoderTemp*(2048/32400)) / 4095.0;
+		remoteStateData.xGyro = (decoderTemp*(2048 / 32400)) / 4095.0;
 
 		decoderTemp = (newValue.at(13) & 0x7F) << 6 | ((newValue.at(14) & 0xFC) >> 2);
 		decoderTemp = (decoderTemp << 19) >> 19;
@@ -211,14 +210,28 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 		remoteStateData.yTouch = -((2.0*((newValue.at(17) & 0x1F) << 3 | (newValue.at(18) & 0xE0) >> 5) / 255.0) - 1);
 		if (remoteStateData.yTouch == 1) remoteStateData.yTouch = 0; //defaults to extreme, remap to center
 
-		QQuaternion xQuatenion, yQuatenion, zQuatenion;
-		//remote cordinates are world relative not device relative, as are axis
-		xQuatenion = QQuaternion::fromEulerAngles(remoteStateData.xOri, 0, 0); //x open scad, about x (across screen)  
-		yQuatenion = QQuaternion::fromEulerAngles(0, remoteStateData.zOri, 0);  //y open scad, about y (into screen) 
-		zQuatenion = QQuaternion::fromEulerAngles(0, 0, remoteStateData.yOri); //z about z top of screen to bottom
+		//QQuaternion xQuatenion, yQuatenion, zQuatenion;
+		////remote cordinates are world relative not device relative, as are axis
+		//xQuatenion = QQuaternion::fromEulerAngles(remoteStateData.xOri, 0, 0); //x open scad, about x (across screen)  
+		//yQuatenion = QQuaternion::fromEulerAngles(0, remoteStateData.zOri, 0);  //y open scad, about y (into screen) 
+		//zQuatenion = QQuaternion::fromEulerAngles(0, 0, remoteStateData.yOri); //z about z top of screen to bottom
+		float angle = qSqrt(remoteStateData.xOri * remoteStateData.xOri + remoteStateData.yOri * remoteStateData.yOri + -remoteStateData.zOri * -remoteStateData.zOri);
+		if (angle > 0) {
+			QVector3D rotVector = QVector3D::QVector3D(remoteStateData.xOri, -remoteStateData.zOri, remoteStateData.yOri);
+			rotVector *= 1 / angle;
+			oriQuatenion = QQuaternion::fromAxisAndAngle(rotVector, angle);
+		}
+		else {
+			oriQuatenion = QQuaternion::QQuaternion();
+		}
 		//manually stack rotations to enforce order
 		//oriQuatenion = xQuatenion.inverted() * yQuatenion.inverted() * zQuatenion;
-		oriQuatenion = xQuatenion * yQuatenion.inverted() * zQuatenion;
+		//oriQuatenion = xQuatenion * yQuatenion.inverted() * zQuatenion;
+		//oriQuatenion = zQuatenion;
+		//oriQuatenion *= yQuatenion.inverted();
+		//oriQuatenion = xQuatenion;
+		//oriQuatenion = yQuatenion.inverted();
+		//oriQuatenion = zQuatenion;
 
 		QVector4D q = oriQuatenion.toVector4D();
 		float g[3] = { 0,0,0 };
@@ -228,7 +241,6 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 		g[0] = 2 * (q.x() * q.z() - q.w() * q.y());
 		g[1] = 2 * (q.w() * q.x() + q.y() * q.z());
 		g[2] = q.w() * q.w() - q.x() * q.x() - q.y() * q.y() + q.z() * q.z();
-
 
 		compensated[0] = remoteStateData.xAcc - g[0];
 		compensated[1] = remoteStateData.zAcc - g[1];
@@ -249,24 +261,21 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 		//PRINTDB("X track value = %f",remoteStateData.xTouch);
 		//PRINTDB("Y track value = %f",remoteStateData.yTouch);
 
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3,remoteStateData.xAcc));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4,remoteStateData.yAcc));
-		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5,remoteStateData.zAcc));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(0, compensated[0]));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(1, compensated[1]));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(2, compensated[2]));
-		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3, remoteStateData.xGyro));
-		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4, remoteStateData.yGyro));
-		//InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5, remoteStateData.zGyro));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(3, remoteStateData.xGyro));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(4, remoteStateData.yGyro));
+		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(5, remoteStateData.zGyro));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(6, remoteStateData.xTouch));
 		InputDriverManager::instance()->sendEvent(new InputEventAxisChanged(7, remoteStateData.yTouch));
 
-
+		
+		
 		QVector3D rotation;
 		rotation = oriQuatenion.toEulerAngles();
 		//InputDriverManager::instance()->sendEvent(new InputEventRotate(-remoteStateData.zOri, -remoteStateData.xOri, remoteStateData.yOri, false, false));
 		InputDriverManager::instance()->sendEvent(new InputEventRotate(rotation.x(), rotation.y(), rotation.z(), false, false));
-		//InputDriverManager::instance()->sendEvent(new InputEventRotate2(rotation.x(), rotation.y(), rotation.z(), false));
 
 
 		//check for change of button state
@@ -279,7 +288,6 @@ void DayDreamBLEInputDriver::updatedDataRecived(const QLowEnergyCharacteristic &
 
 		previousRemoteStateData = remoteStateData;
 	}
-
 }
 
 
